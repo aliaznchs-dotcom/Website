@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Log In — NexusTrade</title>
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<div class="auth-wrap">
+    <div class="auth-card panel">
+        <div class="brand mb-16"><span class="dot"></span><span class="gradient-text">NEXUS</span>TRADE</div>
+        <div class="auth-title">Welcome back</div>
+        <div class="auth-sub">Log in to access your trading terminal.</div>
+
+        <div class="error-msg" id="error"></div>
+
+        <form id="login-form">
+            <div class="field">
+                <label for="email">Email</label>
+                <input type="email" id="email" required autocomplete="email" />
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <input type="password" id="password" required autocomplete="current-password" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Log In</button>
+        </form>
+
+        <div class="auth-switch">Don't have an account? <a href="/register.html">Sign up</a></div>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+    if (Auth.getToken()) window.location.href = '/dashboard.html';
+
+    const form = document.getElementById('login-form');
+    const errorEl = document.getElementById('error');
+    const submitBtn = document.getElementById('submit-btn');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorEl.classList.remove('show');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span> Logging in...';
+
+        try {
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const { token, user } = await api('/api/auth/login', {
+                method: 'POST',
+                body: JSON.stringify({ email, password }),
+            });
+            Auth.setSession(token, user);
+            window.location.href = '/dashboard.html';
+        } catch (err) {
+            errorEl.textContent = err.message;
+            errorEl.classList.add('show');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Log In';
+        }
+    });
+</script>
+</body>
+</html>

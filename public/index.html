@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NexusTrade — Trade the Future</title>
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<header class="topbar">
+    <div class="brand"><span class="dot"></span><span class="gradient-text">NEXUS</span>TRADE</div>
+    <nav class="nav-links">
+        <a href="/index.html" class="active">Home</a>
+        <a href="/login.html">Log In</a>
+        <a href="/register.html"><button class="btn btn-primary">Get Started</button></a>
+    </nav>
+</header>
+
+<div class="ticker-wrap">
+    <div class="ticker" id="ticker"></div>
+</div>
+
+<section class="hero">
+    <span class="pill"><span class="dot"></span>Live markets · simulated feed</span>
+    <h1>Trade assets in a <span class="gradient-text">next-gen</span> interface.</h1>
+    <p>NexusTrade pairs a real Postgres-backed ledger with a live-updating market simulator — practice execution, portfolio management, and order flow in a fully futuristic terminal.</p>
+    <div class="hero-cta">
+        <a href="/register.html"><button class="btn btn-primary">Create Account</button></a>
+        <a href="/login.html"><button class="btn">Log In</button></a>
+    </div>
+
+    <div class="feature-grid">
+        <div class="panel feature-card">
+            <div class="feature-icon">⚡</div>
+            <h3>Live Price Feed</h3>
+            <p>WebSocket-driven ticks update every asset in real time, backed by a persistent Postgres store.</p>
+        </div>
+        <div class="panel feature-card">
+            <div class="feature-icon">🛡</div>
+            <h3>Atomic Order Engine</h3>
+            <p>Every buy/sell executes inside a database transaction — balances and holdings never drift out of sync.</p>
+        </div>
+        <div class="panel feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>Portfolio Analytics</h3>
+            <p>Track net worth, unrealized P&amp;L, and full order history from a single glass-panel dashboard.</p>
+        </div>
+    </div>
+</section>
+
+<footer class="text-center muted small" style="padding: 40px;">
+    NexusTrade — simulated markets for practice and demonstration only. Not real financial advice.
+</footer>
+
+<script src="/js/api.js"></script>
+<script>
+    async function loadTicker() {
+        try {
+            const { assets } = await api('/api/market/assets');
+            const el = document.getElementById('ticker');
+            const items = assets.map(a => `
+                <span class="ticker-item">
+                    <strong>${a.symbol}</strong>
+                    <span class="mono">${formatMoney(a.last_price)}</span>
+                </span>
+            `).join('');
+            el.innerHTML = items + items; // duplicate for seamless loop
+        } catch (err) {
+            // silent on landing page
+        }
+    }
+    loadTicker();
+</script>
+</body>
+</html>

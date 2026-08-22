@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trade — NexusTrade</title>
+<link rel="stylesheet" href="/css/style.css" />
+<style>
+    #price-chart { width: 100%; height: 280px; display: block; }
+    .asset-list { max-height: 460px; overflow-y: auto; }
+    .asset-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 8px; border-radius: 8px; cursor: pointer; transition: background 0.15s; }
+    .asset-row:hover, .asset-row.active { background: rgba(0, 240, 255, 0.06); }
+    .asset-row.active { border-left: 2px solid var(--cyan); }
+    .side-toggle { display: flex; gap: 8px; margin-bottom: 18px; }
+    .side-toggle button { flex: 1; }
+    .side-toggle button.active.buy { background: linear-gradient(90deg, #0be08f, var(--green)); color: #052; border: none; }
+    .side-toggle button.active.sell { background: linear-gradient(90deg, #ff5f7e, var(--red)); color: #300; border: none; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+    <div class="brand"><span class="dot"></span><span class="gradient-text">NEXUS</span>TRADE</div>
+    <nav class="nav-links">
+        <a href="/dashboard.html">Dashboard</a>
+        <a href="/trade.html" class="active">Trade</a>
+        <div class="user-chip">
+            <span id="username-chip">—</span>
+            <button class="btn btn-ghost" id="logout-btn" style="padding: 4px 10px;">Log out</button>
+        </div>
+    </nav>
+</header>
+
+<main class="container">
+    <div class="grid" style="grid-template-columns: 220px 1fr 340px; gap: 20px;">
+
+        <div class="panel">
+            <div class="panel-title">Assets</div>
+            <div class="asset-list" id="asset-list"></div>
+        </div>
+
+        <div class="panel">
+            <div class="flex-between">
+                <div>
+                    <div class="flex gap-8">
+                        <span id="active-symbol" style="font-size:1.4rem; font-weight:800;">—</span>
+                        <span id="active-name" class="muted"></span>
+                    </div>
+                    <div class="flex gap-12 mt-8">
+                        <span id="active-price" class="stat-value">—</span>
+                        <span id="active-change" class="mono"></span>
+                    </div>
+                </div>
+            </div>
+            <canvas id="price-chart" class="mt-16"></canvas>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">Place Order</div>
+            <div class="side-toggle">
+                <button type="button" class="btn buy active" id="btn-buy">Buy</button>
+                <button type="button" class="btn sell" id="btn-sell">Sell</button>
+            </div>
+            <div class="field">
+                <label for="qty">Quantity</label>
+                <input type="number" id="qty" min="0.000001" step="any" placeholder="0.00" />
+            </div>
+            <div class="field">
+                <label>Estimated Total</label>
+                <div class="stat-value" id="est-total" style="font-size:1.3rem;">$0.00</div>
+            </div>
+            <button class="btn btn-primary btn-block" id="submit-order">Review &amp; Submit</button>
+            <div class="glow-line"></div>
+            <div class="flex-between small muted">
+                <span>Cash Available</span>
+                <span class="mono" id="side-cash">—</span>
+            </div>
+            <div class="flex-between small muted mt-8">
+                <span>Position</span>
+                <span class="mono" id="side-position">—</span>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script src="/js/api.js"></script>
+<script src="/js/chart.js"></script>
+<script>
+Auth.requireAuth();
+
+const user = Auth.getUser();
+document.getElementById('username-chip').textContent = user ? `@${user.username}` : '';
+document.getElementById('logout-btn').addEventListener('click', () => Auth.logout());
+
+let assets = [];
+let activeSymbol = new URLSearchParams(window.location.search).get('symbol');
+let priceHistory = {};
+let portfolio = null;
+let side = 'BUY';
+
+document.getElementById('btn-buy').addEventListener('click', () => setSide('BUY'));
+document.getElementById('btn-sell').addEventListener('click', () => setSide('SELL'));
+
+function setSide(s) {
+    side = s;
+    document.getElementById('btn-buy').classList.toggle('active', s === 'BUY');
+    document.getElementById('btn-sell').classList.toggle('active', s === 'SELL');
+    updateSidePanel();
+}
+
+async function loadAssets() {
+    const { assets: list } = await api('/api/market/assets');
+    assets = list;
+    if (!activeSymbol) activeSymbol = assets[0]?.symbol;
+    assets.forEach(a => { priceHistory[a.symbol] = priceHistory[a.symbol] || Array(30).fill(Number(a.last_price)); });
+    renderAssetList();
+    renderActive();
+}
+
+function renderAssetList() {
+    const el = document.getElementById('asset-list');
+    el.innerHTML = assets.map(a => `
+        <div class="asset-row ${a.symbol === activeSymbol ? 'active' : ''}" data-symbol="${a.symbol}">
+            <div>
+                <div><strong>${a.symbol}</strong></div>
+                <div class="muted small">${a.name}</div>
+            </div>
+            <div class="mono">${formatMoney(a.last_price)}</div>
+        </div>
+    `).join('');
+    el.querySelectorAll('.asset-row').forEach(row => {
+        row.addEventListener('click', () => {
+            activeSymbol = row.dataset.symbol;
+            history.replaceState(null, '', `/trade.html?symbol=${activeSymbol}`);
+            renderAssetList();
+            renderActive();
+        });
+    });
+}
+
+function renderActive() {
+    const a = assets.find(x => x.symbol === activeSymbol);
+    if (!a) return;
+    document.getElementById('active-symbol').textContent = a.symbol;
+    document.getElementById('active-name').textContent = a.name;
+    document.getElementById('active-price').textContent = formatMoney(a.last_price);
+
+    const hist = priceHistory[a.symbol] || [Number(a.last_price)];
+    const change = hist.length > 1 ? ((hist[hist.length - 1] - hist[0]) / hist[0]) * 100 : 0;
+    const changeEl = document.getElementById('active-change');
+    changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+    changeEl.className = `mono ${change >= 0 ? 'up' : 'down'}`;
+
+    drawLineChart(document.getElementById('price-chart'), hist, { up: change >= 0 });
+    updateSidePanel();
+    updateEstTotal();
+}
+
+function updateSidePanel() {
+    const a = assets.find(x => x.symbol === activeSymbol);
+    document.getElementById('side-cash').textContent = portfolio ? formatMoney(portfolio.user.cash_balance) : '—';
+    const holding = portfolio?.holdings.find(h => h.symbol === activeSymbol);
+    document.getElementById('side-position').textContent = holding ? `${formatNumber(holding.quantity)} ${activeSymbol}` : `0 ${activeSymbol || ''}`;
+}
+
+function updateEstTotal() {
+    const a = assets.find(x => x.symbol === activeSymbol);
+    const qty = Number(document.getElementById('qty').value) || 0;
+    const total = a ? qty * Number(a.last_price) : 0;
+    document.getElementById('est-total').textContent = formatMoney(total);
+}
+document.getElementById('qty').addEventListener('input', updateEstTotal);
+
+async function loadPortfolio() {
+    try {
+        portfolio = await api('/api/portfolio');
+        updateSidePanel();
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
+document.getElementById('submit-order').addEventListener('click', async () => {
+    const qty = Number(document.getElementById('qty').value);
+    if (!activeSymbol || !qty || qty <= 0) {
+        toast('Enter a valid quantity.', 'error');
+        return;
+    }
+    const btn = document.getElementById('submit-order');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Submitting...';
+    try {
+        const { order } = await api('/api/orders', {
+            method: 'POST',
+            body: JSON.stringify({ symbol: activeSymbol, side, quantity: qty }),
+        });
+        toast(`${order.side} ${formatNumber(order.quantity)} ${order.symbol} @ ${formatMoney(order.price)} executed.`, 'success');
+        document.getElementById('qty').value = '';
+        updateEstTotal();
+        await loadPortfolio();
+    } catch (err) {
+        toast(err.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Review & Submit';
+    }
+});
+
+function connectWS() {
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${window.location.host}/ws`);
+
+    ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type !== 'prices') return;
+        msg.data.forEach(u => {
+            const a = assets.find(x => x.symbol === u.symbol);
+            if (a) a.last_price = u.price;
+            const hist = priceHistory[u.symbol] || [];
+            hist.push(u.price);
+            if (hist.length > 40) hist.shift();
+            priceHistory[u.symbol] = hist;
+        });
+        renderAssetList();
+        renderActive();
+    };
+
+    ws.onclose = () => setTimeout(connectWS, 3000);
+}
+
+(async function init() {
+    await loadAssets();
+    await loadPortfolio();
+    connectWS();
+})();
+</script>
+</body>
+</html>

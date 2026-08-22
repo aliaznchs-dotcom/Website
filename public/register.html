@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign Up — NexusTrade</title>
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<div class="auth-wrap">
+    <div class="auth-card panel">
+        <div class="brand mb-16"><span class="dot"></span><span class="gradient-text">NEXUS</span>TRADE</div>
+        <div class="auth-title">Create your account</div>
+        <div class="auth-sub">Start with $100,000 in simulated cash.</div>
+
+        <div class="error-msg" id="error"></div>
+
+        <form id="register-form">
+            <div class="field">
+                <label for="username">Username</label>
+                <input type="text" id="username" required minlength="3" maxlength="32" autocomplete="username" />
+            </div>
+            <div class="field">
+                <label for="email">Email</label>
+                <input type="email" id="email" required autocomplete="email" />
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <input type="password" id="password" required minlength="8" autocomplete="new-password" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Create Account</button>
+        </form>
+
+        <div class="auth-switch">Already have an account? <a href="/login.html">Log in</a></div>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+    if (Auth.getToken()) window.location.href = '/dashboard.html';
+
+    const form = document.getElementById('register-form');
+    const errorEl = document.getElementById('error');
+    const submitBtn = document.getElementById('submit-btn');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorEl.classList.remove('show');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span> Creating account...';
+
+        try {
+            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const { token, user } = await api('/api/auth/register', {
+                method: 'POST',
+                body: JSON.stringify({ username, email, password }),
+            });
+            Auth.setSession(token, user);
+            window.location.href = '/dashboard.html';
+        } catch (err) {
+            errorEl.textContent = err.message;
+            errorEl.classList.add('show');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Create Account';
+        }
+    });
+</script>
+</body>
+</html>

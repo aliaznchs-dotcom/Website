@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard — NexusTrade</title>
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<header class="topbar">
+    <div class="brand"><span class="dot"></span><span class="gradient-text">NEXUS</span>TRADE</div>
+    <nav class="nav-links">
+        <a href="/dashboard.html" class="active">Dashboard</a>
+        <a href="/trade.html">Trade</a>
+        <div class="user-chip">
+            <span id="username-chip">—</span>
+            <button class="btn btn-ghost" id="logout-btn" style="padding: 4px 10px;">Log out</button>
+        </div>
+    </nav>
+</header>
+
+<div class="ticker-wrap">
+    <div class="ticker" id="ticker"></div>
+</div>
+
+<main class="container">
+
+    <div class="grid grid-4 mb-16">
+        <div class="panel">
+            <div class="stat-label">Net Worth</div>
+            <div class="stat-value" id="net-worth">—</div>
+        </div>
+        <div class="panel">
+            <div class="stat-label">Cash Balance</div>
+            <div class="stat-value" id="cash-balance">—</div>
+        </div>
+        <div class="panel">
+            <div class="stat-label">Holdings Value</div>
+            <div class="stat-value" id="holdings-value">—</div>
+        </div>
+        <div class="panel">
+            <div class="stat-label">Open Positions</div>
+            <div class="stat-value" id="position-count">—</div>
+        </div>
+    </div>
+
+    <div class="grid grid-3 mt-24">
+        <div class="panel">
+            <div class="flex-between mb-16">
+                <div class="panel-title" style="margin:0;">Your Holdings</div>
+            </div>
+            <table id="holdings-table">
+                <thead>
+                    <tr><th>Asset</th><th>Qty</th><th>Avg Price</th><th>Last Price</th><th>Value</th><th>P&amp;L</th></tr>
+                </thead>
+                <tbody id="holdings-body">
+                    <tr><td colspan="6" class="muted text-center">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">Market Watch</div>
+            <table>
+                <tbody id="market-body">
+                    <tr><td class="muted text-center">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="panel mt-24">
+        <div class="panel-title">Recent Orders</div>
+        <table>
+            <thead>
+                <tr><th>Time</th><th>Asset</th><th>Side</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+            </thead>
+            <tbody id="orders-body">
+                <tr><td colspan="6" class="muted text-center">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+</main>
+
+<script src="/js/api.js"></script>
+<script>
+Auth.requireAuth();
+
+const user = Auth.getUser();
+document.getElementById('username-chip').textContent = user ? `@${user.username}` : '';
+document.getElementById('logout-btn').addEventListener('click', () => Auth.logout());
+
+let assetsBySymbol = {};
+
+async function loadPortfolio() {
+    try {
+        const data = await api('/api/portfolio');
+        document.getElementById('net-worth').textContent = formatMoney(data.net_worth);
+        document.getElementById('cash-balance').textContent = formatMoney(data.user.cash_balance);
+        document.getElementById('holdings-value').textContent = formatMoney(data.holdings_value);
+        document.getElementById('position-count').textContent = data.holdings.length;
+
+        const body = document.getElementById('holdings-body');
+        if (data.holdings.length === 0) {
+            body.innerHTML = '<tr><td colspan="6" class="muted text-center">No positions yet. Head to Trade to get started.</td></tr>';
+        } else {
+            body.innerHTML = data.holdings.map(h => `
+                <tr class="row-hover" onclick="window.location.href='/trade.html?symbol=${h.symbol}'">
+                    <td><strong>${h.symbol}</strong><div class="muted small">${h.name}</div></td>
+                    <td class="mono">${formatNumber(h.quantity)}</td>
+                    <td class="mono">${formatMoney(h.avg_price)}</td>
+                    <td class="mono">${formatMoney(h.last_price)}</td>
+                    <td class="mono">${formatMoney(h.market_value)}</td>
+                    <td class="mono ${h.unrealized_pnl >= 0 ? 'up' : 'down'}">${h.unrealized_pnl >= 0 ? '+' : ''}${formatMoney(h.unrealized_pnl)}</td>
+                </tr>
+            `).join('');
+        }
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
+async function loadMarket() {
+    try {
+        const { assets } = await api('/api/market/assets');
+        assets.forEach(a => assetsBySymbol[a.symbol] = a);
+        renderMarket(assets);
+        renderTicker(assets);
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
+function renderMarket(assets) {
+    const body = document.getElementById('market-body');
+    body.innerHTML = assets.map(a => `
+        <tr class="row-hover" onclick="window.location.href='/trade.html?symbol=${a.symbol}'" id="market-row-${a.symbol}">
+            <td><strong>${a.symbol}</strong><div class="muted small">${a.name}</div></td>
+            <td class="mono price-cell" style="text-align:right;">${formatMoney(a.last_price)}</td>
+        </tr>
+    `).join('');
+}
+
+function renderTicker(assets) {
+    const el = document.getElementById('ticker');
+    const items = assets.map(a => `
+        <span class="ticker-item" id="ticker-${a.symbol}">
+            <strong>${a.symbol}</strong>
+            <span class="mono price-span">${formatMoney(a.last_price)}</span>
+        </span>
+    `).join('');
+    el.innerHTML = items + items;
+}
+
+async function loadOrders() {
+    try {
+        const { orders } = await api('/api/orders');
+        const body = document.getElementById('orders-body');
+        if (orders.length === 0) {
+            body.innerHTML = '<tr><td colspan="6" class="muted text-center">No orders yet.</td></tr>';
+        } else {
+            body.innerHTML = orders.slice(0, 15).map(o => `
+                <tr>
+                    <td class="muted small">${new Date(o.created_at).toLocaleString()}</td>
+                    <td><strong>${o.symbol}</strong></td>
+                    <td><span class="badge badge-${o.side.toLowerCase()}">${o.side}</span></td>
+                    <td class="mono">${formatNumber(o.quantity)}</td>
+                    <td class="mono">${formatMoney(o.price)}</td>
+                    <td class="mono">${formatMoney(o.total)}</td>
+                </tr>
+            `).join('');
+        }
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
+function connectWS() {
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${window.location.host}/ws`);
+
+    ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type !== 'prices') return;
+        msg.data.forEach(u => {
+            const cell = document.querySelector(`#market-row-${u.symbol} .price-cell`);
+            if (cell) {
+                cell.textContent = formatMoney(u.price);
+                cell.classList.remove('up', 'down');
+                cell.classList.add(u.change >= 0 ? 'up' : 'down');
+            }
+            const tickerEl = document.querySelector(`#ticker-${u.symbol} .price-span`);
+            if (tickerEl) tickerEl.textContent = formatMoney(u.price);
+        });
+    };
+
+    ws.onclose = () => setTimeout(connectWS, 3000);
+}
+
+loadPortfolio();
+loadMarket();
+loadOrders();
+connectWS();
+setInterval(loadPortfolio, 8000);
+</script>
+</body>
+</html>
