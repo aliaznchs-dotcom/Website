@@ -58,6 +58,10 @@ prospects you've let go quiet.
 6. Visit `http://localhost:3100`. With the seed loaded, log in as
    `demo@huntercrm.test` / `demo1234`.
 
+To run it on a host instead of your own machine, see [DEPLOY.md](DEPLOY.md) —
+the app can apply its own schema and demo data on boot, so it deploys to free
+tiers with no shell access.
+
 > Re-running `npm run db:seed` deletes and recreates the demo account and everything
 > attached to it. It leaves other accounts alone.
 

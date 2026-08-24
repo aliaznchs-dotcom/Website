@@ -1,6 +1,5 @@
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
-const pool = require('./pool');
 
 const DEMO_EMAIL = 'demo@huntercrm.test';
 const DEMO_PASSWORD = 'demo1234';
@@ -65,10 +64,18 @@ function dueEndOfDay(days) {
     return d;
 }
 
-async function seed() {
-    let client;
+// Loads the demo account. With force, any existing demo account is replaced;
+// without it, an existing one is left alone — that's what makes seeding safe to
+// run on every boot of a hosted instance.
+// Returns true when data was written, false when an existing account was kept.
+async function seedDemo(pool, { force = false } = {}) {
+    const client = await pool.connect();
     try {
-        client = await pool.connect();
+        if (!force) {
+            const existing = await client.query(`SELECT 1 FROM users WHERE email = $1`, [DEMO_EMAIL]);
+            if (existing.rowCount > 0) return false;
+        }
+
         await client.query('BEGIN');
 
         // Re-seeding wipes the demo account's records; ON DELETE CASCADE takes
@@ -139,15 +146,28 @@ async function seed() {
         }
 
         await client.query('COMMIT');
+        return true;
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+    } finally {
+        client.release();
+    }
+}
+
+async function main() {
+    const pool = require('./pool');
+    try {
+        await seedDemo(pool, { force: true });
         console.log(`Seeded demo data. Log in with ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
     } catch (err) {
-        if (client) await client.query('ROLLBACK').catch(() => {});
         console.error('Failed to seed database:', err.message);
         process.exitCode = 1;
     } finally {
-        if (client) client.release();
         await pool.end();
     }
 }
 
-seed();
+if (require.main === module) main();
+
+module.exports = { seedDemo, DEMO_EMAIL, DEMO_PASSWORD };
