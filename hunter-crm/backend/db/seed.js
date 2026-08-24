@@ -66,8 +66,9 @@ function dueEndOfDay(days) {
 }
 
 async function seed() {
-    const client = await pool.connect();
+    let client;
     try {
+        client = await pool.connect();
         await client.query('BEGIN');
 
         // Re-seeding wipes the demo account's records; ON DELETE CASCADE takes
@@ -140,11 +141,11 @@ async function seed() {
         await client.query('COMMIT');
         console.log(`Seeded demo data. Log in with ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
     } catch (err) {
-        await client.query('ROLLBACK');
+        if (client) await client.query('ROLLBACK').catch(() => {});
         console.error('Failed to seed database:', err.message);
         process.exitCode = 1;
     } finally {
-        client.release();
+        if (client) client.release();
         await pool.end();
     }
 }
