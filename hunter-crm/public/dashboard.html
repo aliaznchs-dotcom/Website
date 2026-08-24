@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard — Hunter CRM</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<main class="container">
+
+    <div class="page-head">
+        <div>
+            <h1 class="page-title" id="greeting">Your desk</h1>
+            <p class="page-sub" id="greeting-sub">Loading…</p>
+        </div>
+        <a href="/pipeline.html" class="btn btn-primary">Open pipeline</a>
+    </div>
+
+    <div class="grid grid-4 mb-16">
+        <div class="panel">
+            <div class="stat-label">Open pipeline</div>
+            <div class="stat-value" id="open-total">—</div>
+            <div class="stat-note" id="open-count">—</div>
+        </div>
+        <div class="panel">
+            <div class="stat-label">Weighted forecast</div>
+            <div class="stat-value" id="weighted-total">—</div>
+            <div class="stat-note">Stage-probability adjusted</div>
+        </div>
+        <div class="panel">
+            <div class="stat-label">Closed won — this month</div>
+            <div class="stat-value up" id="won-total">—</div>
+            <div class="progress"><div class="progress-bar" id="quota-bar" style="width: 0%"></div></div>
+            <div class="stat-note" id="quota-note">—</div>
+        </div>
+        <div class="panel">
+            <div class="stat-label">Win rate — this month</div>
+            <div class="stat-value" id="win-rate">—</div>
+            <div class="stat-note" id="win-rate-note">—</div>
+        </div>
+    </div>
+
+    <div class="grid grid-main">
+        <div>
+            <div class="panel mb-16">
+                <div class="flex-between mb-16">
+                    <div class="panel-title" style="margin:0;">Follow-ups due</div>
+                    <span class="badge badge-neutral" id="task-summary">—</span>
+                </div>
+                <div id="task-list"><div class="empty">Loading…</div></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Recent activity</div>
+                <div id="activity-list"><div class="empty">Loading…</div></div>
+            </div>
+        </div>
+
+        <div>
+            <div class="panel mb-16">
+                <div class="panel-title">Pipeline by stage</div>
+                <div id="stage-list"><div class="empty">Loading…</div></div>
+            </div>
+
+            <div class="panel">
+                <div class="flex-between mb-16">
+                    <div class="panel-title" style="margin:0;">Going cold</div>
+                    <span class="badge badge-neutral" id="cold-window">—</span>
+                </div>
+                <div id="cold-list"><div class="empty">Loading…</div></div>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<script src="/js/api.js"></script>
+<script>
+Auth.requireAuth();
+renderTopbar('dashboard');
+
+const STAGE_ORDER = ['PROSPECTING', 'QUALIFYING', 'DEMO', 'PROPOSAL', 'NEGOTIATION'];
+
+async function loadDashboard() {
+    try {
+        const data = await apiGet('/api/dashboard');
+
+        const firstName = (data.user.full_name || '').split(' ')[0];
+        document.getElementById('greeting').textContent = firstName ? `${firstName}'s desk` : 'Your desk';
+        document.getElementById('greeting-sub').textContent =
+            `${data.activity.total} touches in the last ${data.activity.window_days} days · ${data.pipeline.open_count} open deals`;
+
+        document.getElementById('open-total').textContent = formatMoney(data.pipeline.open_total);
+        document.getElementById('open-count').textContent =
+            `${data.pipeline.open_count} deal${data.pipeline.open_count === 1 ? '' : 's'} in play`;
+        document.getElementById('weighted-total').textContent = formatMoney(data.pipeline.weighted_total);
+
+        document.getElementById('won-total').textContent = formatMoney(data.month.won_total);
+        const attainment = data.month.quota_attainment;
+        document.getElementById('quota-bar').style.width = `${Math.min((attainment || 0) * 100, 100)}%`;
+        document.getElementById('quota-note').textContent =
+            `${formatPercent(attainment)} of ${formatMoney(data.month.quota, { compact: true })} quota`;
+
+        const winRateEl = document.getElementById('win-rate');
+        winRateEl.textContent = formatPercent(data.month.win_rate);
+        winRateEl.className = 'stat-value' + (data.month.win_rate === null ? '' : data.month.win_rate >= 0.5 ? ' up' : ' warn');
+        document.getElementById('win-rate-note').textContent =
+            data.month.win_rate === null
+                ? 'No deals closed yet this month'
+                : `${data.month.won_count} won · ${data.month.lost_count} lost`;
+
+        renderStages(data.pipeline);
+        renderCold(data.cold_contacts, data.cold_after_days);
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
+function renderStages(pipeline) {
+    const max = Math.max(...STAGE_ORDER.map((s) => Number(pipeline.by_stage[s]?.total || 0)), 1);
+    document.getElementById('stage-list').innerHTML = STAGE_ORDER.map((stage) => {
+        const cell = pipeline.by_stage[stage] || { count: 0, total: 0 };
+        const total = Number(cell.total);
+        return `
+            <div style="margin-bottom: 14px;">
+                <div class="flex-between small">
+                    <span>${STAGE_LABELS[stage]}</span>
+                    <span class="mono muted">${formatMoney(total, { compact: true })} · ${cell.count}</span>
+                </div>
+                <div class="progress"><div class="progress-bar" style="width: ${(total / max) * 100}%"></div></div>
+            </div>`;
+    }).join('');
+}
+
+function renderCold(contacts, days) {
+    document.getElementById('cold-window').textContent = `${days}+ days untouched`;
+    const el = document.getElementById('cold-list');
+
+    if (contacts.length === 0) {
+        el.innerHTML = '<div class="empty">Nothing has gone cold. Good.</div>';
+        return;
+    }
+
+    el.innerHTML = contacts.map((c) => `
+        <a href="/contact.html?id=${c.id}" class="task">
+            <div class="avatar">${escapeHtml(initials(c.first_name, c.last_name))}</div>
+            <div class="task-main">
+                <div class="task-title">${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</div>
+                <div class="task-meta">
+                    ${escapeHtml(c.company_name || 'No company')} · last touch ${escapeHtml(formatRelative(c.last_touch_at))}
+                </div>
+            </div>
+            <span class="badge badge-${c.status.toLowerCase()}">${titleCase(c.status)}</span>
+        </a>`).join('');
+}
+
+async function loadTasks() {
+    try {
+        const { tasks } = await apiGet('/api/tasks?scope=today');
+        const el = document.getElementById('task-list');
+        const overdue = tasks.filter((t) => new Date(t.due_at) < new Date()).length;
+
+        document.getElementById('task-summary').textContent =
+            tasks.length === 0 ? 'All clear' : `${tasks.length} due · ${overdue} overdue`;
+
+        if (tasks.length === 0) {
+            el.innerHTML = '<div class="empty">No follow-ups due today. Go add some.</div>';
+            return;
+        }
+
+        el.innerHTML = tasks.map((t) => `
+            <div class="task" data-task-id="${t.id}">
+                <button class="task-check" data-complete="${t.id}" title="Mark done">✓</button>
+                <div class="task-main">
+                    <div class="task-title">${escapeHtml(t.title)}</div>
+                    <div class="task-meta">
+                        ${t.contact_id
+                            ? `<a href="/contact.html?id=${t.contact_id}">${escapeHtml(t.first_name)} ${escapeHtml(t.last_name)}</a> · `
+                            : ''}
+                        <span class="${dueClass(t.due_at, t.completed_at)}">due ${escapeHtml(formatRelative(t.due_at))}</span>
+                    </div>
+                </div>
+            </div>`).join('');
+
+        el.querySelectorAll('[data-complete]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                btn.disabled = true;
+                try {
+                    await apiPatch(`/api/tasks/${btn.dataset.complete}`, { completed: true });
+                    toast('Follow-up cleared.');
+                    loadTasks();
+                    loadDashboard();
+                } catch (err) {
+                    toast(err.message, 'error');
+                    btn.disabled = false;
+                }
+            });
+        });
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
+async function loadActivity() {
+    try {
+        const { activities } = await apiGet('/api/activities?limit=12');
+        const el = document.getElementById('activity-list');
+
+        if (activities.length === 0) {
+            el.innerHTML = '<div class="empty">No activity logged yet.</div>';
+            return;
+        }
+
+        el.innerHTML = `<div class="timeline">${activities.map((a) => `
+            <div class="timeline-item">
+                <div class="timeline-dot">${ACTIVITY_ICONS[a.type] || '•'}</div>
+                <div class="timeline-head">
+                    <span class="timeline-subject">${escapeHtml(a.subject)}</span>
+                    <span class="timeline-time">${escapeHtml(formatRelative(a.occurred_at))}</span>
+                </div>
+                <div class="task-meta">
+                    ${a.contact_id
+                        ? `<a href="/contact.html?id=${a.contact_id}">${escapeHtml(a.first_name)} ${escapeHtml(a.last_name)}</a>`
+                        : escapeHtml(a.deal_title || '')}
+                    ${a.company_name ? ` · ${escapeHtml(a.company_name)}` : ''}
+                </div>
+                ${a.body ? `<div class="timeline-body">${escapeHtml(a.body)}</div>` : ''}
+            </div>`).join('')}</div>`;
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
+loadDashboard();
+loadTasks();
+loadActivity();
+</script>
+</body>
+</html>

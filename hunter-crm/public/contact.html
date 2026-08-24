@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Contact — Hunter CRM</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<main class="container">
+
+    <div class="page-head">
+        <div class="identity">
+            <div class="avatar avatar-lg" id="avatar">—</div>
+            <div>
+                <h1 class="page-title" id="name">Loading…</h1>
+                <p class="page-sub" id="subtitle">—</p>
+            </div>
+        </div>
+        <div class="flex gap-8">
+            <a href="/contacts.html" class="btn btn-ghost btn-sm">← All contacts</a>
+            <button class="btn btn-danger btn-sm" id="delete-btn">Delete</button>
+        </div>
+    </div>
+
+    <div class="grid grid-main">
+        <div>
+            <div class="panel mb-16">
+                <div class="panel-title">Log a touch</div>
+                <form id="activity-form">
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="type">Type</label>
+                            <select id="type">
+                                <option value="CALL">📞 Call</option>
+                                <option value="EMAIL">✉️ Email</option>
+                                <option value="MEETING">🤝 Meeting</option>
+                                <option value="LINKEDIN">💼 LinkedIn</option>
+                                <option value="NOTE">📝 Note</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="deal">Related deal</label>
+                            <select id="deal"><option value="">None</option></select>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="subject">Subject</label>
+                        <input type="text" id="subject" placeholder="Discovery call" required />
+                    </div>
+                    <div class="field">
+                        <label for="body">Notes</label>
+                        <textarea id="body" placeholder="What was said, what happens next…"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="log-btn">Log activity</button>
+                </form>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Timeline</div>
+                <div id="timeline"><div class="empty">Loading…</div></div>
+            </div>
+        </div>
+
+        <div>
+            <div class="panel mb-16">
+                <div class="panel-title">Details</div>
+                <div id="details"><div class="empty">Loading…</div></div>
+                <div class="field mt-16">
+                    <label for="status">Status</label>
+                    <select id="status">
+                        <option value="NEW">New</option>
+                        <option value="WORKING">Working</option>
+                        <option value="QUALIFIED">Qualified</option>
+                        <option value="NURTURING">Nurturing</option>
+                        <option value="DISQUALIFIED">Disqualified</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="panel mb-16">
+                <div class="flex-between mb-16">
+                    <div class="panel-title" style="margin:0;">Deals</div>
+                    <button class="btn btn-sm" id="add-deal-btn">＋ Deal</button>
+                </div>
+                <div id="deals"><div class="empty">Loading…</div></div>
+            </div>
+
+            <div class="panel">
+                <div class="flex-between mb-16">
+                    <div class="panel-title" style="margin:0;">Follow-ups</div>
+                    <button class="btn btn-sm" id="add-task-btn">＋ Task</button>
+                </div>
+                <div id="tasks"><div class="empty">Loading…</div></div>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<div class="modal-backdrop" id="deal-modal" hidden>
+    <div class="modal">
+        <div class="modal-head">
+            <h2 class="modal-title">New deal</h2>
+            <button class="modal-close" data-modal-close aria-label="Close">×</button>
+        </div>
+        <div class="error-msg" id="deal-error"></div>
+        <form id="deal-form">
+            <div class="field">
+                <label for="deal-title">Title</label>
+                <input type="text" id="deal-title" placeholder="Northwind — fleet rollout" required />
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label for="deal-amount">Amount (USD)</label>
+                    <input type="number" id="deal-amount" min="0" step="500" value="0" />
+                </div>
+                <div class="field">
+                    <label for="deal-stage">Stage</label>
+                    <select id="deal-stage">
+                        <option value="PROSPECTING">Prospecting</option>
+                        <option value="QUALIFYING">Qualifying</option>
+                        <option value="DEMO">Demo</option>
+                        <option value="PROPOSAL">Proposal</option>
+                        <option value="NEGOTIATION">Negotiation</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field">
+                <label for="deal-close">Expected close</label>
+                <input type="date" id="deal-close" />
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn" data-modal-close>Cancel</button>
+                <button type="submit" class="btn btn-primary" id="save-deal">Create deal</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="task-modal" hidden>
+    <div class="modal">
+        <div class="modal-head">
+            <h2 class="modal-title">New follow-up</h2>
+            <button class="modal-close" data-modal-close aria-label="Close">×</button>
+        </div>
+        <div class="error-msg" id="task-error"></div>
+        <form id="task-form">
+            <div class="field">
+                <label for="task-title">What needs doing</label>
+                <input type="text" id="task-title" placeholder="Send the revised proposal" required />
+            </div>
+            <div class="field">
+                <label for="task-due">Due</label>
+                <input type="date" id="task-due" required />
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn" data-modal-close>Cancel</button>
+                <button type="submit" class="btn btn-primary" id="save-task">Add follow-up</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+Auth.requireAuth();
+renderTopbar('contacts');
+
+const contactId = new URLSearchParams(window.location.search).get('id');
+if (!contactId) window.location.href = '/contacts.html';
+
+const dealModal = wireModal('deal-modal');
+const taskModal = wireModal('task-modal');
+const statusSelect = document.getElementById('status');
+
+let contact = null;
+
+async function load() {
+    try {
+        const data = await apiGet(`/api/contacts/${contactId}`);
+        contact = data.contact;
+
+        document.title = `${contact.first_name} ${contact.last_name} — Hunter CRM`;
+        document.getElementById('avatar').textContent = initials(contact.first_name, contact.last_name);
+        document.getElementById('name').textContent = `${contact.first_name} ${contact.last_name}`;
+        document.getElementById('subtitle').textContent =
+            [contact.title, contact.company_name].filter(Boolean).join(' · ') || 'No title or company on file';
+        statusSelect.value = contact.status;
+
+        renderDetails(contact);
+        renderDeals(data.deals);
+        renderTimeline(data.activities);
+        renderTasks(data.tasks);
+    } catch (err) {
+        toast(err.message, 'error');
+        if (err.message.includes('not found')) setTimeout(() => window.location.href = '/contacts.html', 1200);
+    }
+}
+
+function detailRow(label, value, href) {
+    const shown = value
+        ? (href ? `<a href="${escapeHtml(href)}" style="color: var(--cyan);">${escapeHtml(value)}</a>` : escapeHtml(value))
+        : '<span class="muted">—</span>';
+    return `<div class="flex-between small" style="padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <span class="muted">${label}</span><span>${shown}</span>
+    </div>`;
+}
+
+function renderDetails(c) {
+    document.getElementById('details').innerHTML = [
+        detailRow('Company', c.company_name),
+        detailRow('Industry', c.company_industry),
+        detailRow('Email', c.email, c.email ? `mailto:${c.email}` : null),
+        detailRow('Phone', c.phone, c.phone ? `tel:${c.phone}` : null),
+        detailRow('LinkedIn', c.linkedin_url ? 'Profile' : null, c.linkedin_url),
+        detailRow('Source', titleCase(c.source)),
+        detailRow('Last touch', formatRelative(c.last_touch_at)),
+        detailRow('Added', formatDate(c.created_at)),
+    ].join('');
+}
+
+function renderDeals(deals) {
+    const el = document.getElementById('deals');
+    const select = document.getElementById('deal');
+    select.innerHTML = '<option value="">None</option>'
+        + deals.map((d) => `<option value="${d.id}">${escapeHtml(d.title)}</option>`).join('');
+
+    if (deals.length === 0) {
+        el.innerHTML = '<div class="empty">No deals yet.</div>';
+        return;
+    }
+
+    el.innerHTML = deals.map((d) => `
+        <a href="/pipeline.html" class="task">
+            <div class="task-main">
+                <div class="task-title">${escapeHtml(d.title)}</div>
+                <div class="task-meta">
+                    <span class="mono">${formatMoney(d.amount)}</span>
+                    ${d.expected_close ? ` · closes ${escapeHtml(formatDate(d.expected_close))}` : ''}
+                </div>
+            </div>
+            <span class="badge badge-${['WON', 'LOST'].includes(d.stage) ? d.stage.toLowerCase() : 'neutral'}">
+                ${STAGE_LABELS[d.stage]}
+            </span>
+        </a>`).join('');
+}
+
+function renderTimeline(activities) {
+    const el = document.getElementById('timeline');
+    if (activities.length === 0) {
+        el.innerHTML = '<div class="empty">Nothing logged yet. Make the first touch.</div>';
+        return;
+    }
+
+    el.innerHTML = `<div class="timeline">${activities.map((a) => `
+        <div class="timeline-item">
+            <div class="timeline-dot">${ACTIVITY_ICONS[a.type] || '•'}</div>
+            <div class="timeline-head">
+                <span class="timeline-subject">${escapeHtml(a.subject)}</span>
+                <span class="timeline-time" title="${escapeHtml(formatDateTime(a.occurred_at))}">
+                    ${escapeHtml(formatRelative(a.occurred_at))}
+                </span>
+            </div>
+            ${a.body ? `<div class="timeline-body">${escapeHtml(a.body)}</div>` : ''}
+        </div>`).join('')}</div>`;
+}
+
+function renderTasks(tasks) {
+    const el = document.getElementById('tasks');
+    if (tasks.length === 0) {
+        el.innerHTML = '<div class="empty">No follow-ups scheduled.</div>';
+        return;
+    }
+
+    el.innerHTML = tasks.map((t) => `
+        <div class="task ${t.completed_at ? 'completed' : ''}">
+            <button class="task-check ${t.completed_at ? 'done' : ''}" data-toggle="${t.id}"
+                    data-completed="${t.completed_at ? '1' : ''}" title="Toggle done">✓</button>
+            <div class="task-main">
+                <div class="task-title">${escapeHtml(t.title)}</div>
+                <div class="task-meta ${dueClass(t.due_at, t.completed_at)}">
+                    ${t.completed_at ? `done ${escapeHtml(formatRelative(t.completed_at))}` : `due ${escapeHtml(formatRelative(t.due_at))}`}
+                </div>
+            </div>
+        </div>`).join('');
+
+    el.querySelectorAll('[data-toggle]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            try {
+                await apiPatch(`/api/tasks/${btn.dataset.toggle}`, { completed: !btn.dataset.completed });
+                load();
+            } catch (err) {
+                toast(err.message, 'error');
+                btn.disabled = false;
+            }
+        });
+    });
+}
+
+document.getElementById('activity-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const btn = document.getElementById('log-btn');
+    btn.disabled = true;
+
+    try {
+        await apiPost('/api/activities', {
+            type: document.getElementById('type').value,
+            subject: document.getElementById('subject').value,
+            body: document.getElementById('body').value,
+            dealId: document.getElementById('deal').value || null,
+            contactId,
+        });
+        document.getElementById('subject').value = '';
+        document.getElementById('body').value = '';
+        toast('Touch logged.');
+        load();
+    } catch (err) {
+        toast(err.message, 'error');
+    } finally {
+        btn.disabled = false;
+    }
+});
+
+statusSelect.addEventListener('change', async () => {
+    try {
+        await apiPatch(`/api/contacts/${contactId}`, { status: statusSelect.value });
+        toast(`Status set to ${titleCase(statusSelect.value)}.`);
+    } catch (err) {
+        toast(err.message, 'error');
+        statusSelect.value = contact.status;
+    }
+});
+
+document.getElementById('add-deal-btn').addEventListener('click', () => {
+    document.getElementById('deal-error').classList.remove('show');
+    dealModal.open();
+});
+
+document.getElementById('deal-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const btn = document.getElementById('save-deal');
+    const errorEl = document.getElementById('deal-error');
+    errorEl.classList.remove('show');
+    btn.disabled = true;
+
+    try {
+        await apiPost('/api/deals', {
+            title: document.getElementById('deal-title').value,
+            amount: document.getElementById('deal-amount').value,
+            stage: document.getElementById('deal-stage').value,
+            expectedClose: document.getElementById('deal-close').value || null,
+            contactId,
+            companyId: contact.company_id,
+        });
+        toast('Deal created.');
+        event.target.reset();
+        dealModal.close();
+        load();
+    } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.add('show');
+    } finally {
+        btn.disabled = false;
+    }
+});
+
+document.getElementById('add-task-btn').addEventListener('click', () => {
+    document.getElementById('task-error').classList.remove('show');
+    taskModal.open();
+});
+
+document.getElementById('task-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const btn = document.getElementById('save-task');
+    const errorEl = document.getElementById('task-error');
+    errorEl.classList.remove('show');
+    btn.disabled = true;
+
+    try {
+        // A date input gives a bare day; follow-ups are due by end of that day.
+        const due = new Date(`${document.getElementById('task-due').value}T23:59:00`);
+        await apiPost('/api/tasks', {
+            title: document.getElementById('task-title').value,
+            dueAt: due.toISOString(),
+            contactId,
+        });
+        toast('Follow-up added.');
+        event.target.reset();
+        taskModal.close();
+        load();
+    } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.add('show');
+    } finally {
+        btn.disabled = false;
+    }
+});
+
+document.getElementById('delete-btn').addEventListener('click', async () => {
+    if (!confirm('Delete this contact? Their activity and follow-ups go with them.')) return;
+    try {
+        await apiDelete(`/api/contacts/${contactId}`);
+        toast('Contact deleted.');
+        setTimeout(() => window.location.href = '/contacts.html', 600);
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+});
+
+load();
+</script>
+</body>
+</html>

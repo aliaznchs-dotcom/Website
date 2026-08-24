@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pipeline — Hunter CRM</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<main class="container container-wide">
+
+    <div class="page-head">
+        <div>
+            <h1 class="page-title">Pipeline</h1>
+            <p class="page-sub" id="summary">Loading…</p>
+        </div>
+        <div class="flex gap-8">
+            <label class="flex gap-8 small muted" style="margin:0; white-space:nowrap;">
+                <input type="checkbox" id="show-closed" style="width:auto;" /> Show closed
+            </label>
+            <button class="btn btn-primary" id="add-deal-btn">＋ New deal</button>
+        </div>
+    </div>
+
+    <div class="board" id="board">
+        <div class="empty">Loading…</div>
+    </div>
+
+</main>
+
+<div class="modal-backdrop" id="deal-modal" hidden>
+    <div class="modal">
+        <div class="modal-head">
+            <h2 class="modal-title" id="deal-modal-title">New deal</h2>
+            <button class="modal-close" data-modal-close aria-label="Close">×</button>
+        </div>
+        <div class="error-msg" id="deal-error"></div>
+        <form id="deal-form">
+            <div class="field">
+                <label for="deal-title">Title</label>
+                <input type="text" id="deal-title" placeholder="Northwind — fleet rollout" required />
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label for="deal-amount">Amount (USD)</label>
+                    <input type="number" id="deal-amount" min="0" step="500" value="0" />
+                </div>
+                <div class="field">
+                    <label for="deal-stage">Stage</label>
+                    <select id="deal-stage"></select>
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label for="deal-contact">Contact</label>
+                    <select id="deal-contact"><option value="">None</option></select>
+                </div>
+                <div class="field">
+                    <label for="deal-close">Expected close</label>
+                    <input type="date" id="deal-close" />
+                </div>
+            </div>
+            <div class="field" id="lost-reason-field" hidden>
+                <label for="deal-lost-reason">Why was it lost?</label>
+                <input type="text" id="deal-lost-reason" placeholder="Went with the incumbent" />
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-danger" id="delete-deal" hidden>Delete</button>
+                <button type="button" class="btn" data-modal-close>Cancel</button>
+                <button type="submit" class="btn btn-primary" id="save-deal">Create deal</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+Auth.requireAuth();
+renderTopbar('pipeline');
+
+const OPEN_STAGES = ['PROSPECTING', 'QUALIFYING', 'DEMO', 'PROPOSAL', 'NEGOTIATION'];
+const ALL_STAGES = [...OPEN_STAGES, 'WON', 'LOST'];
+const STAGE_PROBABILITY = {
+    PROSPECTING: 0.10, QUALIFYING: 0.25, DEMO: 0.45, PROPOSAL: 0.65, NEGOTIATION: 0.85,
+};
+
+const modal = wireModal('deal-modal');
+const stageSelect = document.getElementById('deal-stage');
+const lostReasonField = document.getElementById('lost-reason-field');
+const errorEl = document.getElementById('deal-error');
+const deleteBtn = document.getElementById('delete-deal');
+
+let editingId = null;
+let dealsById = {};
+
+stageSelect.innerHTML = ALL_STAGES.map((s) => `<option value="${s}">${STAGE_LABELS[s]}</option>`).join('');
+stageSelect.addEventListener('change', () => {
+    lostReasonField.hidden = stageSelect.value !== 'LOST';
+});
+
+function visibleStages() {
+    return document.getElementById('show-closed').checked ? ALL_STAGES : OPEN_STAGES;
+}
+
+async function loadBoard() {
+    try {
+        const { board, deals } = await apiGet('/api/deals');
+        dealsById = Object.fromEntries(deals.map((d) => [d.id, d]));
+
+        const openTotal = OPEN_STAGES.reduce((sum, s) => sum + Number(board[s].total), 0);
+        const openCount = OPEN_STAGES.reduce((sum, s) => sum + board[s].count, 0);
+        const weighted = OPEN_STAGES.reduce((sum, s) => sum + Number(board[s].total) * STAGE_PROBABILITY[s], 0);
+
+        document.getElementById('summary').textContent =
+            `${openCount} open deals · ${formatMoney(openTotal)} in play · ${formatMoney(weighted)} weighted`;
+
+        document.getElementById('board').innerHTML = visibleStages().map((stage) => `
+            <section class="board-col" data-stage="${stage}">
+                <div class="board-col-head">
+                    <div>
+                        <div class="board-col-name">${STAGE_LABELS[stage]}</div>
+                        <div class="board-col-count">${board[stage].count} deal${board[stage].count === 1 ? '' : 's'}</div>
+                    </div>
+                    <div class="board-col-total">${formatMoney(board[stage].total, { compact: true })}</div>
+                </div>
+                <div class="board-col-body">
+                    ${board[stage].deals.map(dealCard).join('')
+                        || '<div class="empty small" style="padding:14px 4px;">Empty</div>'}
+                </div>
+            </section>`).join('');
+
+        wireDragAndDrop();
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
+function dealCard(deal) {
+    const who = deal.first_name ? `${deal.first_name} ${deal.last_name}` : (deal.company_name || 'Unassigned');
+    return `
+        <article class="deal-card" draggable="true" data-deal-id="${deal.id}">
+            <div class="deal-card-title">${escapeHtml(deal.title)}</div>
+            <div class="deal-card-meta">
+                <span>${escapeHtml(who)}</span>
+                <span class="deal-card-amount">${formatMoney(deal.amount, { compact: true })}</span>
+            </div>
+            ${deal.expected_close && !deal.closed_at
+                ? `<div class="deal-card-close">Closes ${escapeHtml(formatRelative(deal.expected_close))}</div>`
+                : ''}
+            ${deal.lost_reason ? `<div class="deal-card-close">${escapeHtml(deal.lost_reason)}</div>` : ''}
+        </article>`;
+}
+
+function wireDragAndDrop() {
+    document.querySelectorAll('.deal-card').forEach((card) => {
+        card.addEventListener('dragstart', (event) => {
+            event.dataTransfer.setData('text/plain', card.dataset.dealId);
+            event.dataTransfer.effectAllowed = 'move';
+            card.classList.add('dragging');
+        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        card.addEventListener('click', () => openEdit(Number(card.dataset.dealId)));
+    });
+
+    document.querySelectorAll('.board-col').forEach((col) => {
+        col.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            col.classList.add('drop-target');
+        });
+        col.addEventListener('dragleave', () => col.classList.remove('drop-target'));
+        col.addEventListener('drop', async (event) => {
+            event.preventDefault();
+            col.classList.remove('drop-target');
+
+            const dealId = Number(event.dataTransfer.getData('text/plain'));
+            const stage = col.dataset.stage;
+            const deal = dealsById[dealId];
+            if (!deal || deal.stage === stage) return;
+
+            try {
+                await apiPatch(`/api/deals/${dealId}`, { stage });
+                toast(`"${deal.title}" → ${STAGE_LABELS[stage]}`);
+                loadBoard();
+            } catch (err) {
+                toast(err.message, 'error');
+            }
+        });
+    });
+}
+
+async function loadContacts() {
+    try {
+        const { contacts } = await apiGet('/api/contacts');
+        document.getElementById('deal-contact').innerHTML = '<option value="">None</option>'
+            + contacts.map((c) =>
+                `<option value="${c.id}">${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}${
+                    c.company_name ? ` — ${escapeHtml(c.company_name)}` : ''}</option>`).join('');
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
+function openCreate() {
+    editingId = null;
+    document.getElementById('deal-modal-title').textContent = 'New deal';
+    document.getElementById('save-deal').textContent = 'Create deal';
+    document.getElementById('deal-form').reset();
+    document.getElementById('deal-amount').value = 0;
+    stageSelect.value = 'PROSPECTING';
+    lostReasonField.hidden = true;
+    document.getElementById('deal-contact').disabled = false;
+    deleteBtn.hidden = true;
+    errorEl.classList.remove('show');
+    modal.open();
+}
+
+function openEdit(dealId) {
+    const deal = dealsById[dealId];
+    if (!deal) return;
+
+    editingId = dealId;
+    document.getElementById('deal-modal-title').textContent = 'Edit deal';
+    document.getElementById('save-deal').textContent = 'Save changes';
+    document.getElementById('deal-title').value = deal.title;
+    document.getElementById('deal-amount').value = Number(deal.amount);
+    stageSelect.value = deal.stage;
+    document.getElementById('deal-contact').value = deal.contact_id || '';
+    document.getElementById('deal-close').value = deal.expected_close
+        ? new Date(deal.expected_close).toISOString().slice(0, 10)
+        : '';
+    document.getElementById('deal-lost-reason').value = deal.lost_reason || '';
+    lostReasonField.hidden = deal.stage !== 'LOST';
+    // Reassigning a deal's contact isn't supported from the board.
+    document.getElementById('deal-contact').disabled = true;
+    deleteBtn.hidden = false;
+    errorEl.classList.remove('show');
+    modal.open();
+}
+
+document.getElementById('add-deal-btn').addEventListener('click', openCreate);
+document.getElementById('show-closed').addEventListener('change', loadBoard);
+
+document.getElementById('deal-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const btn = document.getElementById('save-deal');
+    errorEl.classList.remove('show');
+    btn.disabled = true;
+
+    const payload = {
+        title: document.getElementById('deal-title').value,
+        amount: document.getElementById('deal-amount').value,
+        stage: stageSelect.value,
+        expectedClose: document.getElementById('deal-close').value || null,
+        lostReason: stageSelect.value === 'LOST' ? document.getElementById('deal-lost-reason').value : null,
+    };
+
+    try {
+        if (editingId) {
+            await apiPatch(`/api/deals/${editingId}`, payload);
+            toast('Deal updated.');
+        } else {
+            await apiPost('/api/deals', { ...payload, contactId: document.getElementById('deal-contact').value || null });
+            toast('Deal created.');
+        }
+        modal.close();
+        loadBoard();
+    } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.add('show');
+    } finally {
+        btn.disabled = false;
+    }
+});
+
+deleteBtn.addEventListener('click', async () => {
+    if (!editingId || !confirm('Delete this deal for good?')) return;
+    try {
+        await apiDelete(`/api/deals/${editingId}`);
+        toast('Deal deleted.');
+        modal.close();
+        loadBoard();
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+});
+
+loadContacts();
+loadBoard();
+</script>
+</body>
+</html>

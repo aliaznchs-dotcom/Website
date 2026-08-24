@@ -1,0 +1,39 @@
+# Render Blueprint for Hunter CRM (hunter-crm/).
+#
+# Render reads this file from the repository root. Point a new Blueprint at this
+# repo and it provisions the web service and its database together, wires
+# DATABASE_URL between them, and generates a JWT secret.
+#
+# NexusTrade (the repo root app) is deliberately not included — add a second
+# service entry here if you want it deployed too.
+
+services:
+  - type: web
+    name: hunter-crm
+    runtime: node
+    rootDir: hunter-crm
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hunter-crm-db
+          property: connectionString
+      # No shell on the free plan, so the app applies its own schema on boot and
+      # loads the demo account if it isn't already there. Both are idempotent.
+      - key: AUTO_MIGRATE
+        value: "true"
+      # Set to "false" once you have your own data and no longer want the demo
+      # account recreated if it is ever deleted.
+      - key: SEED_DEMO
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+
+databases:
+  - name: hunter-crm-db
+    plan: free
+    databaseName: huntercrm
+    user: huntercrm
