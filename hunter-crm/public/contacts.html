@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Contacts — Hunter CRM</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<main class="container">
+
+    <div class="page-head">
+        <div>
+            <h1 class="page-title">Contacts</h1>
+            <p class="page-sub" id="count-sub">Loading…</p>
+        </div>
+        <button class="btn btn-primary" id="add-btn">＋ Add contact</button>
+    </div>
+
+    <div class="filters">
+        <div class="field field-search">
+            <label for="search">Search</label>
+            <input type="search" id="search" placeholder="Name, email or company…" />
+        </div>
+        <div class="field field-select">
+            <label for="status-filter">Status</label>
+            <select id="status-filter">
+                <option value="">All statuses</option>
+                <option value="NEW">New</option>
+                <option value="WORKING">Working</option>
+                <option value="QUALIFIED">Qualified</option>
+                <option value="NURTURING">Nurturing</option>
+                <option value="DISQUALIFIED">Disqualified</option>
+            </select>
+        </div>
+        <div class="field field-select">
+            <label for="source-filter">Source</label>
+            <select id="source-filter">
+                <option value="">All sources</option>
+                <option value="OUTBOUND">Outbound</option>
+                <option value="INBOUND">Inbound</option>
+                <option value="REFERRAL">Referral</option>
+                <option value="EVENT">Event</option>
+                <option value="LINKEDIN">LinkedIn</option>
+                <option value="LIST">List</option>
+            </select>
+        </div>
+        <div class="field field-select">
+            <label for="stale-filter">Last touch</label>
+            <select id="stale-filter">
+                <option value="">Any time</option>
+                <option value="7">Cold 7+ days</option>
+                <option value="14">Cold 14+ days</option>
+                <option value="30">Cold 30+ days</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Contact</th>
+                        <th>Company</th>
+                        <th>Status</th>
+                        <th>Source</th>
+                        <th>Last touch</th>
+                    </tr>
+                </thead>
+                <tbody id="contacts-body">
+                    <tr><td colspan="5" class="empty">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</main>
+
+<div class="modal-backdrop" id="contact-modal" hidden>
+    <div class="modal">
+        <div class="modal-head">
+            <h2 class="modal-title">New contact</h2>
+            <button class="modal-close" data-modal-close aria-label="Close">×</button>
+        </div>
+
+        <div class="error-msg" id="modal-error"></div>
+
+        <form id="contact-form">
+            <div class="field-row">
+                <div class="field">
+                    <label for="firstName">First name</label>
+                    <input type="text" id="firstName" required />
+                </div>
+                <div class="field">
+                    <label for="lastName">Last name</label>
+                    <input type="text" id="lastName" required />
+                </div>
+            </div>
+            <div class="field">
+                <label for="title">Job title</label>
+                <input type="text" id="title" placeholder="VP Operations" />
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" />
+                </div>
+                <div class="field">
+                    <label for="phone">Phone</label>
+                    <input type="text" id="phone" />
+                </div>
+            </div>
+            <div class="field">
+                <label for="company">Company</label>
+                <select id="company"><option value="">No company</option></select>
+            </div>
+            <div class="field" id="new-company-field" hidden>
+                <label for="newCompany">New company name</label>
+                <input type="text" id="newCompany" placeholder="Halcyon Robotics" />
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label for="source">Source</label>
+                    <select id="source">
+                        <option value="OUTBOUND">Outbound</option>
+                        <option value="INBOUND">Inbound</option>
+                        <option value="REFERRAL">Referral</option>
+                        <option value="EVENT">Event</option>
+                        <option value="LINKEDIN">LinkedIn</option>
+                        <option value="LIST">List</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="status">Status</label>
+                    <select id="status">
+                        <option value="NEW">New</option>
+                        <option value="WORKING">Working</option>
+                        <option value="QUALIFIED">Qualified</option>
+                        <option value="NURTURING">Nurturing</option>
+                        <option value="DISQUALIFIED">Disqualified</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn" data-modal-close>Cancel</button>
+                <button type="submit" class="btn btn-primary" id="save-contact">Add contact</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+Auth.requireAuth();
+renderTopbar('contacts');
+
+const modal = wireModal('contact-modal');
+const companySelect = document.getElementById('company');
+const newCompanyField = document.getElementById('new-company-field');
+const errorEl = document.getElementById('modal-error');
+
+let searchTimer = null;
+
+function currentQuery() {
+    const params = new URLSearchParams();
+    const search = document.getElementById('search').value.trim();
+    const status = document.getElementById('status-filter').value;
+    const source = document.getElementById('source-filter').value;
+    const stale = document.getElementById('stale-filter').value;
+
+    if (search) params.set('q', search);
+    if (status) params.set('status', status);
+    if (source) params.set('source', source);
+    if (stale) params.set('stale', stale);
+
+    const qs = params.toString();
+    return qs ? `?${qs}` : '';
+}
+
+async function loadContacts() {
+    try {
+        const { contacts } = await apiGet(`/api/contacts${currentQuery()}`);
+        const body = document.getElementById('contacts-body');
+        document.getElementById('count-sub').textContent =
+            `${contacts.length} contact${contacts.length === 1 ? '' : 's'}`;
+
+        if (contacts.length === 0) {
+            body.innerHTML = '<tr><td colspan="5" class="empty">No contacts match those filters.</td></tr>';
+            return;
+        }
+
+        body.innerHTML = contacts.map((c) => `
+            <tr class="row-hover" onclick="window.location.href='/contact.html?id=${c.id}'">
+                <td>
+                    <div class="identity">
+                        <div class="avatar">${escapeHtml(initials(c.first_name, c.last_name))}</div>
+                        <div>
+                            <div>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</div>
+                            <div class="muted small">${escapeHtml(c.title || c.email || '—')}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>${escapeHtml(c.company_name || '—')}</td>
+                <td><span class="badge badge-${c.status.toLowerCase()}">${titleCase(c.status)}</span></td>
+                <td class="muted small">${titleCase(c.source)}</td>
+                <td class="muted small">${escapeHtml(formatRelative(c.last_touch_at))}</td>
+            </tr>`).join('');
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
+async function loadCompanies() {
+    try {
+        const { companies } = await apiGet('/api/companies');
+        companySelect.innerHTML = '<option value="">No company</option>'
+            + companies.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')
+            + '<option value="__new__">＋ New company…</option>';
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
+companySelect.addEventListener('change', () => {
+    newCompanyField.hidden = companySelect.value !== '__new__';
+    if (!newCompanyField.hidden) document.getElementById('newCompany').focus();
+});
+
+document.getElementById('add-btn').addEventListener('click', () => {
+    errorEl.classList.remove('show');
+    modal.open();
+});
+
+['search'].forEach((id) => {
+    document.getElementById(id).addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(loadContacts, 250);
+    });
+});
+['status-filter', 'source-filter', 'stale-filter'].forEach((id) => {
+    document.getElementById(id).addEventListener('change', loadContacts);
+});
+
+document.getElementById('contact-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = document.getElementById('save-contact');
+    errorEl.classList.remove('show');
+    submit.disabled = true;
+
+    try {
+        let companyId = companySelect.value || null;
+
+        // "New company…" creates the account first, then attaches the contact to it.
+        if (companyId === '__new__') {
+            const name = document.getElementById('newCompany').value.trim();
+            if (!name) throw new Error('Enter a name for the new company.');
+            const { company } = await apiPost('/api/companies', { name });
+            companyId = company.id;
+        }
+
+        await apiPost('/api/contacts', {
+            firstName: document.getElementById('firstName').value,
+            lastName: document.getElementById('lastName').value,
+            title: document.getElementById('title').value,
+            email: document.getElementById('email').value,
+            phone: document.getElementById('phone').value,
+            companyId,
+            source: document.getElementById('source').value,
+            status: document.getElementById('status').value,
+        });
+
+        toast('Contact added.');
+        event.target.reset();
+        newCompanyField.hidden = true;
+        modal.close();
+        await Promise.all([loadCompanies(), loadContacts()]);
+    } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.add('show');
+    } finally {
+        submit.disabled = false;
+    }
+});
+
+loadCompanies();
+loadContacts();
+</script>
+</body>
+</html>

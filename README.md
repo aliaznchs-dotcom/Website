@@ -1,3 +1,17 @@
+# Website
+
+This repository holds two self-contained applications, each with its own `package.json`,
+database and setup steps:
+
+| Project | What it is | Docs |
+| --- | --- | --- |
+| **NexusTrade** (repo root) | A futuristic simulated trading platform | below |
+| **Hunter CRM** (`hunter-crm/`) | A sales prospecting CRM for outbound reps | [`hunter-crm/README.md`](hunter-crm/README.md) |
+
+They share a design language but no code or data; run whichever one you need.
+
+---
+
 # NexusTrade
 
 A futuristic trading platform: an Express + PostgreSQL backend with a live simulated market feed, and a plain HTML/CSS/JS frontend (dark, neon, glassmorphism UI).

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hunter CRM — prospecting that doesn't go cold</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span><span class="gradient-text">HUNTER</span>CRM</a>
+    <nav class="nav-links">
+        <a href="/login.html">Log in</a>
+        <a href="/register.html" class="btn btn-primary btn-sm">Start hunting</a>
+    </nav>
+</header>
+
+<section class="hero">
+    <div class="pill"><span class="dot"></span> Built for outbound reps</div>
+    <h1>Every lead worked.<br />Nothing goes cold.</h1>
+    <p>
+        Hunter CRM is a prospecting system for people who open business, not just manage it.
+        Track leads, work a visible pipeline, log every touch, and see exactly who you've
+        left hanging.
+    </p>
+    <div class="hero-cta">
+        <a href="/register.html" class="btn btn-primary">Create your workspace</a>
+        <a href="/login.html" class="btn">Log in</a>
+    </div>
+
+    <div class="feature-grid">
+        <div class="panel feature-card">
+            <div class="feature-icon">🎯</div>
+            <h3>A pipeline you can move</h3>
+            <p>Drag deals between stages on a live board. Weighted forecasting updates as you go, so the number on the board is the number you'd commit to.</p>
+        </div>
+        <div class="panel feature-card">
+            <div class="feature-icon">📇</div>
+            <h3>Every touch on the record</h3>
+            <p>Calls, emails, meetings and notes land on one timeline per contact — including stage moves, so you can see how a deal actually got where it is.</p>
+        </div>
+        <div class="panel feature-card">
+            <div class="feature-icon">🌡️</div>
+            <h3>Cold leads surfaced</h3>
+            <p>The dashboard calls out contacts you haven't touched in two weeks and follow-ups you've let slip past due. No lead quietly rots in a list.</p>
+        </div>
+    </div>
+</section>
+
+<script src="/js/api.js"></script>
+<script>
+    // Someone already signed in shouldn't land on the marketing page.
+    if (Auth.getToken()) window.location.href = '/dashboard.html';
+</script>
+</body>
+</html>
